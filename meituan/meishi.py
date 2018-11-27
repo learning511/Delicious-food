@@ -6,11 +6,6 @@ import pymysql
 import configparser
 from Insql import *
 
-# 读取配置文件
-cf = configparser.ConfigParser()
-cf.read("meishi.conf")
-city_list = str(cf.get('meishi', 'city'))
-url = 'http://%s.meituan.com/meishi/pn%s/'
 # Cookies列表，每条Cookies可以在谷歌浏览器的无痕模式获取
 # 由于发送请求要cookies，而且多次访问使用同一个cookies会封，因此设置列表
 cookieList = [
@@ -28,8 +23,8 @@ cookieList = [
     'uuid=475376bc6e554904962b.1530844373.1.0.0; ci=92; rvct=92; _lxsdk_cuid=1646d6fe270c8-02ace3b33e129-3c3c590b-100200-1646d6fe27052; client-id=e5b040a2-ca2c-46c9-bbec-d64ae88c39ff; _lxsdk=1646d6fe270c8-02ace3b33e129-3c3c590b-100200-1646d6fe27052; lat=23.114442; lng=113.158431; _lxsdk_s=1646d6fe272-6e5-682-4f2%7C%7C6',
 ]
 
-# 获取商家信息，参数find_poiId是每个商家的ID，参数city用于记录商家所在城市
-def get_business(find_poiId, city):
+# 获取每间商家信息
+def get_info(find_poiId, city, find_uuid):
     r = ''
     for b in find_poiId:
         url = 'http://www.meituan.com/meishi/%s/' %(b)
@@ -95,18 +90,28 @@ def get_comment(uuid, id):
             comment_dict['merchantComment'] = c.get('merchantComment', '')
             comment_db(comment_dict)
 
-if __name__=='__main__':
-    # 每个城市只显示32页的美食信息，因此循环32次
+def get_all(city_list):
+    url = 'http://%s.meituan.com/meishi/pn%s/'
     for city in city_list.split(','):
+        # 每个城市只显示32页的美食信息，因此循环32次
         for i in range(32):
             headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 6.3; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/64.0.3282.140 Safari/537.36',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 6.3; Win64; x64) AppleWebKit/537.36'
+                              '(KHTML, like Gecko) Chrome/64.0.3282.140 Safari/537.36',
                 'Upgrade-Insecure-Requests': '1',
                 'Host': '%s.meituan.com' % (city),
                 'Referer': 'http://%s.meituan.com/meishi/' % (city)}
-            r = requests.get(url %(city, i+1),headers=headers)
-            # 获取每页的美食商家的id，uuid是唯一的，不同电脑访问会生成不同的uuid
-            find_poiId = re.findall('"poiId":(\d+.*?),',r.text)
+            r = requests.get(url % (city, i + 1), headers=headers)
+            # 获取每页所有的美食商家的id，uuid是唯一的，不同电脑访问会生成不同的uuid
+            find_poiId = re.findall('"poiId":(\d+.*?),', r.text)
             find_uuid = re.findall('"uuid":"(.*?)",', r.text)
-            get_business(find_poiId, city)
+            # 调用函数get_info()，将每页所有的商家ID
+            get_info(find_poiId, city, find_uuid)
             print(find_poiId)
+
+if __name__=='__main__':
+    # 读取配置文件
+    cf = configparser.ConfigParser()
+    cf.read("meishi.conf")
+    city_list = str(cf.get('meishi', 'city'))
+    get_all(city_list)
